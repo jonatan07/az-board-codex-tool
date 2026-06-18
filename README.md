@@ -1,0 +1,220 @@
+# AzBoardCodexTool
+
+CLI en .NET 8 para crear, actualizar, consultar y relacionar Work Items en Azure Boards mediante la API REST oficial.
+
+Tipos soportados:
+
+- Epic
+- Feature
+- User Story
+- Task
+- Bug
+
+## Requisitos
+
+- .NET SDK 8 o superior.
+- Un PAT de Azure DevOps con permisos de **Work Items: Read & write**.
+- Las variables de entorno `AZDO_ORG`, `AZDO_PROJECT` y `AZDO_PAT`.
+
+La aplicación valida las tres variables al iniciar y nunca almacena ni imprime el PAT.
+
+## Configuración
+
+PowerShell, para la sesión actual:
+
+```powershell
+$env:AZDO_ORG = "mi-organizacion"
+$env:AZDO_PROJECT = "mi-proyecto"
+$env:AZDO_PAT = "mi-pat"
+```
+
+Para persistirlas para el usuario:
+
+```powershell
+[Environment]::SetEnvironmentVariable("AZDO_ORG", "mi-organizacion", "User")
+[Environment]::SetEnvironmentVariable("AZDO_PROJECT", "mi-proyecto", "User")
+[Environment]::SetEnvironmentVariable("AZDO_PAT", "mi-pat", "User")
+```
+
+Abra una terminal nueva después de persistirlas. `.env.example` es solo una referencia; el programa no carga archivos `.env`.
+
+## Compilar y ejecutar
+
+```powershell
+dotnet restore
+dotnet build --configuration Release
+dotnet run -- --help
+```
+
+La URL base usada por el cliente es:
+
+```text
+https://dev.azure.com/{AZDO_ORG}/{AZDO_PROJECT}
+```
+
+El PAT se envía por HTTPS mediante Basic Auth, con username vacío y el PAT como password.
+
+## Comandos
+
+### Crear un Work Item
+
+```powershell
+dotnet run -- create `
+  --type Task `
+  --title "Crear pantalla de login" `
+  --description "Crear pantalla de login para la app móvil" `
+  --tags "MVP;Auth;Mobile"
+```
+
+`--type` acepta `Epic`, `Feature`, `User Story`, `Task` y `Bug`. También se acepta `UserStory` como alias.
+
+### Actualizar un Work Item
+
+```powershell
+dotnet run -- update `
+  --id 12345 `
+  --title "Actualizar pantalla de login" `
+  --description "Nueva descripción" `
+  --state "Active"
+```
+
+Se debe enviar al menos una de estas opciones: `--title`, `--description`, `--state` o `--tags`.
+
+### Consultar por ID
+
+```powershell
+dotnet run -- get --id 12345
+```
+
+Devuelve JSON e incluye las relaciones del Work Item.
+
+### Relacionar hijo con padre
+
+```powershell
+dotnet run -- link-parent `
+  --child-id 12346 `
+  --parent-id 12345
+```
+
+La relación se agrega al hijo como `System.LinkTypes.Hierarchy-Reverse`.
+
+### Consultar con WIQL
+
+```powershell
+dotnet run -- query `
+  --wiql "SELECT [System.Id], [System.Title], [System.State] FROM WorkItems WHERE [System.TeamProject] = @project ORDER BY [System.ChangedDate] DESC"
+```
+
+El comando ejecuta WIQL y obtiene los detalles en lotes de hasta 200 IDs. Muestra ID, tipo, estado y título.
+
+## Publicar como herramienta ejecutable
+
+Publicación portable:
+
+```powershell
+dotnet publish --configuration Release --output .\publish
+.\publish\AzBoardCodexTool.exe --help
+```
+
+También puede ejecutarse directamente:
+
+```powershell
+dotnet .\publish\AzBoardCodexTool.dll get --id 12345
+```
+
+## Manejo de errores
+
+Cuando Azure DevOps responde con error, la herramienta muestra:
+
+- Código y nombre del status HTTP.
+- URL solicitada.
+- Body completo de la respuesta.
+
+Los errores de configuración y validación se escriben en `stderr`.
+
+## Arquitectura e integración
+
+```mermaid
+flowchart LR
+    U["Usuario / script"] --> CLI["System.CommandLine"]
+    CLI --> CMD["Commands"]
+    CMD --> SVC["AzureBoardsService"]
+    CFG["Variables AZDO_ORG<br/>AZDO_PROJECT<br/>AZDO_PAT"] --> CONF["Configuration"]
+    CONF --> SVC
+    SVC --> HTTP["HttpClient + Basic Auth"]
+    HTTP --> API["Azure DevOps REST API 7.1"]
+    API --> BOARDS["Azure Boards Work Items"]
+```
+
+### Flujo de una operación
+
+```mermaid
+sequenceDiagram
+    actor User as Usuario
+    participant CLI as AzBoardCodexTool
+    participant Env as Variables de entorno
+    participant API as Azure DevOps REST API
+
+    User->>CLI: create / update / get / link-parent / query
+    CLI->>Env: Leer AZDO_ORG, AZDO_PROJECT, AZDO_PAT
+    Env-->>CLI: Configuración
+    CLI->>CLI: Construir Basic Auth ":" + PAT
+    CLI->>API: HTTPS request (API 7.1)
+    API-->>CLI: JSON o error HTTP
+    CLI-->>User: Resultado, ID/URL o status/body
+```
+
+### Jerarquía de Work Items
+
+```mermaid
+flowchart TD
+    E["Epic"] --> F["Feature"]
+    F --> US["User Story"]
+    US --> T["Task"]
+    US --> B["Bug"]
+    F -. "La API permite otras relaciones válidas<br/>según el proceso del proyecto" .-> B
+```
+
+`link-parent` no impone una jerarquía de tipos en el cliente: Azure Boards valida si la relación es válida para el proceso configurado en el proyecto.
+
+## Estructura
+
+```text
+AzBoardCodexTool/
+├── Commands/
+│   ├── ConsoleOutput.cs
+│   └── WorkItemCommands.cs
+├── Configuration/
+│   ├── AzureDevOpsOptions.cs
+│   └── ConfigurationException.cs
+├── Models/
+│   ├── JsonPatchOperation.cs
+│   ├── WiqlModels.cs
+│   └── WorkItem.cs
+├── Services/
+│   ├── AzureBoardsService.cs
+│   └── AzureDevOpsApiException.cs
+├── .env.example
+├── .gitignore
+├── AzBoardCodexTool.csproj
+├── Program.cs
+└── README.md
+```
+
+## Referencias oficiales
+
+- [Work Items - Create](https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/create?view=azure-devops-rest-7.1)
+- [Work Items - Update](https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/update?view=azure-devops-rest-7.1)
+- [Work Items - Get](https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/get?view=azure-devops-rest-7.1)
+- [WIQL - Query By WIQL](https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/wiql/query-by-wiql?view=azure-devops-rest-7.1)
+- [Work Items - Get Work Items Batch](https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/get-work-items-batch?view=azure-devops-rest-7.1)
+- [Work Item Link Types](https://learn.microsoft.com/en-us/azure/devops/boards/queries/link-type-reference?view=azure-devops)
+- [Azure DevOps authentication guidance](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/authentication-guidance?view=azure-devops)
+- [System.CommandLine overview](https://learn.microsoft.com/en-us/dotnet/standard/commandline/)
+
+## Seguridad
+
+- No confirme `.env`, PATs, logs con headers de autorización ni archivos locales de configuración.
+- Use el mínimo scope necesario para el PAT.
+- Rote el PAT de acuerdo con las políticas de su organización.
+- Para automatizaciones de largo plazo, Microsoft recomienda considerar Microsoft Entra ID en lugar de PATs.
