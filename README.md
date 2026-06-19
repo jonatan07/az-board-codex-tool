@@ -54,6 +54,40 @@ https://dev.azure.com/{AZDO_ORG}/{AZDO_PROJECT}
 
 El PAT se envía por HTTPS mediante Basic Auth, con username vacío y el PAT como password.
 
+## Script de invocación
+
+El wrapper `scripts/Invoke-AzBoardCodexTool.ps1` valida `AZDO_ORG`, `AZDO_PROJECT` y `AZDO_PAT` antes de llamar a la herramienta. Busca primero en el proceso actual y después en las variables persistentes de usuario y máquina. Nunca imprime el PAT.
+
+Validar únicamente la configuración:
+
+```powershell
+.\scripts\Invoke-AzBoardCodexTool.ps1 -CheckEnvironment
+```
+
+Crear un Work Item usando .NET:
+
+```powershell
+.\scripts\Invoke-AzBoardCodexTool.ps1 `
+  -Command create `
+  -Type "User Story" `
+  -Title "Crear pantalla de login" `
+  -Description "Crear pantalla de login para la app móvil" `
+  -AssignedTo "desarrollador@empresa.com" `
+  -AcceptanceCriteria "El usuario puede iniciar sesión con credenciales válidas." `
+  -Tags "MVP;Auth;Mobile"
+```
+
+Usar la imagen Docker:
+
+```powershell
+.\scripts\Invoke-AzBoardCodexTool.ps1 `
+  -Runtime Docker `
+  -Command get `
+  -Id 12345
+```
+
+Comandos admitidos por el script: `create`, `update`, `get`, `link-parent`, `query` y `help`.
+
 ## Uso con Docker
 
 ### Construir la imagen
@@ -297,6 +331,8 @@ AzBoardCodexTool/
 ├── Services/
 │   ├── AzureBoardsService.cs
 │   └── AzureDevOpsApiException.cs
+├── scripts/
+│   └── Invoke-AzBoardCodexTool.ps1
 ├── .env.example
 ├── .dockerignore
 ├── .gitignore
