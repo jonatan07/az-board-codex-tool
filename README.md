@@ -54,6 +54,100 @@ https://dev.azure.com/{AZDO_ORG}/{AZDO_PROJECT}
 
 El PAT se envía por HTTPS mediante Basic Auth, con username vacío y el PAT como password.
 
+## Uso con Docker
+
+### Construir la imagen
+
+Desde la raíz del proyecto:
+
+```powershell
+docker build --tag az-board-codex-tool:latest .
+```
+
+La imagen usa una compilación multi-stage: compila con el SDK de .NET 8 y ejecuta únicamente sobre el runtime de .NET 8.
+
+### Proporcionar la configuración
+
+Si las variables ya existen en la sesión de PowerShell, Docker puede heredarlas por nombre:
+
+```powershell
+docker run --rm `
+  --env AZDO_ORG `
+  --env AZDO_PROJECT `
+  --env AZDO_PAT `
+  az-board-codex-tool:latest --help
+```
+
+También puede crear un archivo local `.env` a partir de `.env.example`:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Después de completar sus valores, úselo así:
+
+```powershell
+docker run --rm `
+  --env-file .env `
+  az-board-codex-tool:latest --help
+```
+
+`.env` está excluido tanto de Git como del contexto de construcción de Docker.
+
+### Crear un Work Item
+
+```powershell
+docker run --rm `
+  --env-file .env `
+  az-board-codex-tool:latest create `
+  --type "User Story" `
+  --title "Crear pantalla de login" `
+  --description "Crear pantalla de login para la app móvil" `
+  --assigned-to "desarrollador@empresa.com" `
+  --acceptance-criteria "El usuario puede iniciar sesión con credenciales válidas." `
+  --tags "MVP;Auth;Mobile"
+```
+
+### Actualizar un Work Item
+
+```powershell
+docker run --rm `
+  --env-file .env `
+  az-board-codex-tool:latest update `
+  --id 12345 `
+  --title "Actualizar pantalla de login" `
+  --state "Active"
+```
+
+### Consultar por ID
+
+```powershell
+docker run --rm `
+  --env-file .env `
+  az-board-codex-tool:latest get --id 12345
+```
+
+### Relacionar hijo con padre
+
+```powershell
+docker run --rm `
+  --env-file .env `
+  az-board-codex-tool:latest link-parent `
+  --child-id 12346 `
+  --parent-id 12345
+```
+
+### Consultar con WIQL
+
+```powershell
+docker run --rm `
+  --env-file .env `
+  az-board-codex-tool:latest query `
+  --wiql "SELECT [System.Id], [System.Title], [System.State] FROM WorkItems WHERE [System.TeamProject] = @project ORDER BY [System.ChangedDate] DESC"
+```
+
+Los argumentos colocados después del nombre de la imagen se envían directamente al CLI porque el contenedor define `AzBoardCodexTool.dll` como su `ENTRYPOINT`.
+
 ## Comandos
 
 ### Crear un Work Item
@@ -63,10 +157,19 @@ dotnet run -- create `
   --type Task `
   --title "Crear pantalla de login" `
   --description "Crear pantalla de login para la app móvil" `
+  --assigned-to "desarrollador@empresa.com" `
+  --acceptance-criteria "El usuario puede iniciar sesión con credenciales válidas." `
   --tags "MVP;Auth;Mobile"
 ```
 
 `--type` acepta `Epic`, `Feature`, `User Story`, `Task` y `Bug`. También se acepta `UserStory` como alias.
+
+Opciones adicionales:
+
+- `--assigned-to`: nombre visible, correo o identidad reconocida por Azure DevOps.
+- `--acceptance-criteria`: contenido de `Microsoft.VSTS.Common.AcceptanceCriteria`.
+
+Ambas opciones son opcionales. La disponibilidad de criterios de aceptación depende del proceso y del tipo de Work Item configurado en el proyecto; Azure Boards devolverá un error HTTP si el campo no existe para ese tipo.
 
 ### Actualizar un Work Item
 
@@ -195,8 +298,10 @@ AzBoardCodexTool/
 │   ├── AzureBoardsService.cs
 │   └── AzureDevOpsApiException.cs
 ├── .env.example
+├── .dockerignore
 ├── .gitignore
 ├── AzBoardCodexTool.csproj
+├── Dockerfile
 ├── Program.cs
 └── README.md
 ```
@@ -215,6 +320,7 @@ AzBoardCodexTool/
 ## Seguridad
 
 - No confirme `.env`, PATs, logs con headers de autorización ni archivos locales de configuración.
+- Evite escribir el PAT directamente en el comando `docker run`; prefiera variables heredadas, `--env-file` o el mecanismo de secretos de su plataforma.
 - Use el mínimo scope necesario para el PAT.
 - Rote el PAT de acuerdo con las políticas de su organización.
 - Para automatizaciones de largo plazo, Microsoft recomienda considerar Microsoft Entra ID en lugar de PATs.

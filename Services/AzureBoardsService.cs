@@ -36,6 +36,8 @@ public sealed class AzureBoardsService
         string type,
         string title,
         string? description,
+        string? assignedTo,
+        string? acceptanceCriteria,
         string? tags,
         CancellationToken cancellationToken)
     {
@@ -45,6 +47,11 @@ public sealed class AzureBoardsService
         };
 
         AddOptionalField(operations, "/fields/System.Description", description);
+        AddOptionalField(operations, "/fields/System.AssignedTo", assignedTo);
+        AddOptionalField(
+            operations,
+            "/fields/Microsoft.VSTS.Common.AcceptanceCriteria",
+            acceptanceCriteria);
         AddOptionalField(operations, "/fields/System.Tags", tags);
 
         var encodedType = Uri.EscapeDataString(NormalizeWorkItemType(type));

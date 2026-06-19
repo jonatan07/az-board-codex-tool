@@ -23,12 +23,20 @@ public static class WorkItemCommands
         var type = RequiredStringOption("--type", "Tipo: Epic, Feature, User Story, Task o Bug.");
         var title = RequiredStringOption("--title", "Título del Work Item.");
         var description = OptionalStringOption("--description", "Descripción del Work Item.");
+        var assignedTo = OptionalStringOption(
+            "--assigned-to",
+            "Usuario asignado (nombre visible, correo o identidad reconocida por Azure DevOps).");
+        var acceptanceCriteria = OptionalStringOption(
+            "--acceptance-criteria",
+            "Criterios de aceptación del Work Item.");
         var tags = OptionalStringOption("--tags", "Tags separados por punto y coma.");
 
         var command = new Command("create", "Crea un Work Item.");
         command.Options.Add(type);
         command.Options.Add(title);
         command.Options.Add(description);
+        command.Options.Add(assignedTo);
+        command.Options.Add(acceptanceCriteria);
         command.Options.Add(tags);
 
         command.SetAction(async (parseResult, cancellationToken) =>
@@ -38,6 +46,8 @@ public static class WorkItemCommands
                     parseResult.GetRequiredValue(type),
                     parseResult.GetRequiredValue(title),
                     parseResult.GetValue(description),
+                    parseResult.GetValue(assignedTo),
+                    parseResult.GetValue(acceptanceCriteria),
                     parseResult.GetValue(tags),
                     cancellationToken);
                 ConsoleOutput.PrintCreated(item);
