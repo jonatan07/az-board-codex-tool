@@ -30,6 +30,7 @@ public static class WorkItemCommands
             "--acceptance-criteria",
             "Criterios de aceptación del Work Item.");
         var tags = OptionalStringOption("--tags", "Tags separados por punto y coma.");
+        var comment = OptionalStringOption("--comment", "Comentario inicial del Work Item.");
 
         var command = new Command("create", "Crea un Work Item.");
         command.Options.Add(type);
@@ -38,6 +39,7 @@ public static class WorkItemCommands
         command.Options.Add(assignedTo);
         command.Options.Add(acceptanceCriteria);
         command.Options.Add(tags);
+        command.Options.Add(comment);
 
         command.SetAction(async (parseResult, cancellationToken) =>
             await ConsoleOutput.ExecuteAsync(async () =>
@@ -49,6 +51,7 @@ public static class WorkItemCommands
                     parseResult.GetValue(assignedTo),
                     parseResult.GetValue(acceptanceCriteria),
                     parseResult.GetValue(tags),
+                    parseResult.GetValue(comment),
                     cancellationToken);
                 ConsoleOutput.PrintCreated(item);
             }));
@@ -63,6 +66,7 @@ public static class WorkItemCommands
         var description = OptionalStringOption("--description", "Nueva descripción.");
         var state = OptionalStringOption("--state", "Nuevo estado.");
         var tags = OptionalStringOption("--tags", "Nuevos tags separados por punto y coma.");
+        var comment = OptionalStringOption("--comment", "Comentario para agregar al Work Item.");
 
         var command = new Command("update", "Actualiza campos de un Work Item.");
         command.Options.Add(id);
@@ -70,6 +74,7 @@ public static class WorkItemCommands
         command.Options.Add(description);
         command.Options.Add(state);
         command.Options.Add(tags);
+        command.Options.Add(comment);
 
         command.SetAction(async (parseResult, cancellationToken) =>
             await ConsoleOutput.ExecuteAsync(async () =>
@@ -80,6 +85,7 @@ public static class WorkItemCommands
                     parseResult.GetValue(description),
                     parseResult.GetValue(state),
                     parseResult.GetValue(tags),
+                    parseResult.GetValue(comment),
                     cancellationToken);
                 ConsoleOutput.PrintUpdated(item, "Updated");
             }));

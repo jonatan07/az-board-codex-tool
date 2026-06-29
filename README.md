@@ -74,7 +74,8 @@ Crear un Work Item usando .NET:
   -Description "Crear pantalla de login para la app móvil" `
   -AssignedTo "desarrollador@empresa.com" `
   -AcceptanceCriteria "El usuario puede iniciar sesión con credenciales válidas." `
-  -Tags "MVP;Auth;Mobile"
+  -Tags "MVP;Auth;Mobile" `
+  -Comment "Creado desde Codex."
 ```
 
 Usar la imagen Docker:
@@ -139,7 +140,8 @@ docker run --rm `
   --description "Crear pantalla de login para la app móvil" `
   --assigned-to "desarrollador@empresa.com" `
   --acceptance-criteria "El usuario puede iniciar sesión con credenciales válidas." `
-  --tags "MVP;Auth;Mobile"
+  --tags "MVP;Auth;Mobile" `
+  --comment "Creado desde Codex."
 ```
 
 ### Actualizar un Work Item
@@ -150,7 +152,8 @@ docker run --rm `
   az-board-codex-tool:latest update `
   --id 12345 `
   --title "Actualizar pantalla de login" `
-  --state "Active"
+  --state "Active" `
+  --comment "Se inicio el desarrollo."
 ```
 
 ### Consultar por ID
@@ -193,7 +196,8 @@ dotnet run -- create `
   --description "Crear pantalla de login para la app móvil" `
   --assigned-to "desarrollador@empresa.com" `
   --acceptance-criteria "El usuario puede iniciar sesión con credenciales válidas." `
-  --tags "MVP;Auth;Mobile"
+  --tags "MVP;Auth;Mobile" `
+  --comment "Creado desde Codex."
 ```
 
 `--type` acepta `Epic`, `Feature`, `User Story`, `Task` y `Bug`. También se acepta `UserStory` como alias.
@@ -202,8 +206,9 @@ Opciones adicionales:
 
 - `--assigned-to`: nombre visible, correo o identidad reconocida por Azure DevOps.
 - `--acceptance-criteria`: contenido de `Microsoft.VSTS.Common.AcceptanceCriteria`.
+- `--comment`: comentario inicial agregado despues de crear el Work Item.
 
-Ambas opciones son opcionales. La disponibilidad de criterios de aceptación depende del proceso y del tipo de Work Item configurado en el proyecto; Azure Boards devolverá un error HTTP si el campo no existe para ese tipo.
+Estas opciones son opcionales. La disponibilidad de criterios de aceptación depende del proceso y del tipo de Work Item configurado en el proyecto; Azure Boards devolverá un error HTTP si el campo no existe para ese tipo.
 
 ### Actualizar un Work Item
 
@@ -212,10 +217,11 @@ dotnet run -- update `
   --id 12345 `
   --title "Actualizar pantalla de login" `
   --description "Nueva descripción" `
-  --state "Active"
+  --state "Active" `
+  --comment "Se actualizo el alcance."
 ```
 
-Se debe enviar al menos una de estas opciones: `--title`, `--description`, `--state` o `--tags`.
+Se debe enviar al menos una de estas opciones: `--title`, `--description`, `--state`, `--tags` o `--comment`.
 
 ### Consultar por ID
 

@@ -39,6 +39,7 @@ public sealed class AzureBoardsService
         string? assignedTo,
         string? acceptanceCriteria,
         string? tags,
+        string? comment,
         CancellationToken cancellationToken)
     {
         var operations = new List<JsonPatchOperation>
@@ -55,10 +56,11 @@ public sealed class AzureBoardsService
         AddOptionalField(operations, "/fields/System.Tags", tags);
 
         var encodedType = Uri.EscapeDataString(NormalizeWorkItemType(type));
-        return SendJsonPatchAsync(
+        return CreateAndMaybeCommentAsync(
             HttpMethod.Post,
             $"_apis/wit/workitems/${encodedType}?api-version={ApiVersion}",
             operations,
+            comment,
             cancellationToken);
     }
 
@@ -68,6 +70,7 @@ public sealed class AzureBoardsService
         string? description,
         string? state,
         string? tags,
+        string? comment,
         CancellationToken cancellationToken)
     {
         var operations = new List<JsonPatchOperation>();
@@ -76,17 +79,13 @@ public sealed class AzureBoardsService
         AddOptionalField(operations, "/fields/System.State", state);
         AddOptionalField(operations, "/fields/System.Tags", tags);
 
-        if (operations.Count == 0)
+        if (operations.Count == 0 && string.IsNullOrWhiteSpace(comment))
         {
             throw new ArgumentException(
-                "At least one field must be supplied: --title, --description, --state or --tags.");
+                "At least one field or comment must be supplied: --title, --description, --state, --tags or --comment.");
         }
 
-        return SendJsonPatchAsync(
-            HttpMethod.Patch,
-            $"_apis/wit/workitems/{id}?api-version={ApiVersion}",
-            operations,
-            cancellationToken);
+        return UpdateAndMaybeCommentAsync(id, operations, comment, cancellationToken);
     }
 
     public async Task<WorkItem> GetAsync(int id, CancellationToken cancellationToken)
@@ -195,6 +194,65 @@ public sealed class AzureBoardsService
         return await ReadResponseAsync<WorkItem>(response, cancellationToken);
     }
 
+    private async Task<WorkItem> CreateAndMaybeCommentAsync(
+        HttpMethod method,
+        string requestUri,
+        IReadOnlyCollection<JsonPatchOperation> operations,
+        string? comment,
+        CancellationToken cancellationToken)
+    {
+        var item = await SendJsonPatchAsync(method, requestUri, operations, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(comment))
+        {
+            await AddCommentAsync(item.Id, comment, cancellationToken);
+        }
+
+        return item;
+    }
+
+    private async Task<WorkItem> UpdateAndMaybeCommentAsync(
+        int id,
+        IReadOnlyCollection<JsonPatchOperation> operations,
+        string? comment,
+        CancellationToken cancellationToken)
+    {
+        WorkItem item;
+        if (operations.Count > 0)
+        {
+            item = await SendJsonPatchAsync(
+                HttpMethod.Patch,
+                $"_apis/wit/workitems/{id}?api-version={ApiVersion}",
+                operations,
+                cancellationToken);
+        }
+        else
+        {
+            item = await GetAsync(id, cancellationToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(comment))
+        {
+            await AddCommentAsync(id, comment, cancellationToken);
+        }
+
+        return item;
+    }
+
+    private async Task AddCommentAsync(
+        int workItemId,
+        string comment,
+        CancellationToken cancellationToken)
+    {
+        using var request = CreateJsonRequest(
+            HttpMethod.Post,
+            $"_apis/wit/workItems/{workItemId}/comments?api-version=7.1-preview.4",
+            JsonSerializer.Serialize(new { text = comment }, JsonOptions),
+            "application/json");
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        await ReadResponseBodyAsync(response, cancellationToken);
+    }
+
     private static HttpRequestMessage CreateJsonRequest(
         HttpMethod method,
         string requestUri,
@@ -223,6 +281,22 @@ public sealed class AzureBoardsService
         var value = JsonSerializer.Deserialize<T>(body, JsonOptions);
         return value ?? throw new InvalidOperationException(
             "Azure DevOps returned an empty or invalid JSON response.");
+    }
+
+    private static async Task<string> ReadResponseBodyAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new AzureDevOpsApiException(
+                response.StatusCode,
+                body,
+                response.RequestMessage?.RequestUri?.ToString() ?? "unknown");
+        }
+
+        return body;
     }
 
     private static void AddOptionalField(

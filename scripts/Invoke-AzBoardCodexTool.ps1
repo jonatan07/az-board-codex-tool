@@ -9,6 +9,7 @@ param(
     [string]$AssignedTo,
     [string]$AcceptanceCriteria,
     [string]$Tags,
+    [string]$Comment,
     [int]$Id,
     [string]$State,
     [int]$ChildId,
@@ -95,6 +96,7 @@ switch ($Command) {
         Add-StringArgument $toolArguments "--assigned-to" $AssignedTo
         Add-StringArgument $toolArguments "--acceptance-criteria" $AcceptanceCriteria
         Add-StringArgument $toolArguments "--tags" $Tags
+        Add-StringArgument $toolArguments "--comment" $Comment
     }
     "update" {
         if ($Id -le 0) {
@@ -108,6 +110,7 @@ switch ($Command) {
         Add-StringArgument $toolArguments "--description" $Description
         Add-StringArgument $toolArguments "--state" $State
         Add-StringArgument $toolArguments "--tags" $Tags
+        Add-StringArgument $toolArguments "--comment" $Comment
     }
     "get" {
         if ($Id -le 0) {
