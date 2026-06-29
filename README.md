@@ -223,6 +223,49 @@ dotnet run -- update `
 
 Se debe enviar al menos una de estas opciones: `--title`, `--description`, `--state`, `--tags` o `--comment`.
 
+## Ejecucion paralela
+
+La herramienta procesa una operacion por invocacion del CLI. No incluye un comando batch interno para crear o actualizar varios Work Items dentro del mismo proceso.
+
+Para ejecutar varios trabajos en paralelo, lance varias invocaciones independientes del wrapper. Cada proceso crea su propio `HttpClient`, lee la configuracion desde variables de entorno y no comparte archivos temporales ni estado mutable con otras ejecuciones.
+
+Ejemplo con PowerShell:
+
+```powershell
+$jobs = @(
+    @{
+        Type = "Task"
+        Title = "Crear validacion de login"
+        Comment = "Creado en ejecucion paralela."
+    },
+    @{
+        Type = "Task"
+        Title = "Agregar logs de autenticacion"
+        Comment = "Creado en ejecucion paralela."
+    },
+    @{
+        Type = "Bug"
+        Title = "Corregir error de sesion expirada"
+        Comment = "Creado en ejecucion paralela."
+    }
+) | ForEach-Object {
+    Start-Job -ScriptBlock {
+        param($Item)
+
+        .\scripts\Invoke-AzBoardCodexTool.ps1 `
+          -Command create `
+          -Type $Item.Type `
+          -Title $Item.Title `
+          -Comment $Item.Comment
+    } -ArgumentList $_
+}
+
+$jobs | Wait-Job | Receive-Job
+$jobs | Remove-Job
+```
+
+El paralelismo efectivo queda limitado por Azure DevOps, la red y las politicas de rate limiting del proyecto u organizacion. Si Azure DevOps devuelve respuestas temporales por exceso de solicitudes, reduzca la cantidad de jobs simultaneos o agregue reintentos en el orquestador externo.
+
 ### Consultar por ID
 
 ```powershell
