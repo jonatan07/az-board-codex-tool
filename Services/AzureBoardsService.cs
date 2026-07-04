@@ -40,8 +40,11 @@ public sealed class AzureBoardsService
         string? acceptanceCriteria,
         string? tags,
         string? comment,
+        IReadOnlyCollection<string>? attachments,
         CancellationToken cancellationToken)
     {
+        ValidateAttachments(attachments);
+
         var operations = new List<JsonPatchOperation>
         {
             new("add", "/fields/System.Title", title)
@@ -61,6 +64,7 @@ public sealed class AzureBoardsService
             $"_apis/wit/workitems/${encodedType}?api-version={ApiVersion}",
             operations,
             comment,
+            attachments,
             cancellationToken);
     }
 
@@ -68,24 +72,36 @@ public sealed class AzureBoardsService
         int id,
         string? title,
         string? description,
+        string? assignedTo,
+        string? acceptanceCriteria,
         string? state,
         string? tags,
         string? comment,
+        IReadOnlyCollection<string>? attachments,
         CancellationToken cancellationToken)
     {
+        ValidateAttachments(attachments);
+
         var operations = new List<JsonPatchOperation>();
         AddOptionalField(operations, "/fields/System.Title", title);
         AddOptionalField(operations, "/fields/System.Description", description);
+        AddOptionalField(operations, "/fields/System.AssignedTo", assignedTo);
+        AddOptionalField(
+            operations,
+            "/fields/Microsoft.VSTS.Common.AcceptanceCriteria",
+            acceptanceCriteria);
         AddOptionalField(operations, "/fields/System.State", state);
         AddOptionalField(operations, "/fields/System.Tags", tags);
 
-        if (operations.Count == 0 && string.IsNullOrWhiteSpace(comment))
+        if (operations.Count == 0 &&
+            string.IsNullOrWhiteSpace(comment) &&
+            HasNoAttachments(attachments))
         {
             throw new ArgumentException(
-                "At least one field or comment must be supplied: --title, --description, --state, --tags or --comment.");
+                "At least one field, comment or attachment must be supplied: --title, --description, --assigned-to, --acceptance-criteria, --state, --tags, --comment or --attachment.");
         }
 
-        return UpdateAndMaybeCommentAsync(id, operations, comment, cancellationToken);
+        return UpdateAndMaybeCommentAsync(id, operations, comment, attachments, cancellationToken);
     }
 
     public async Task<WorkItem> GetAsync(int id, CancellationToken cancellationToken)
@@ -199,6 +215,7 @@ public sealed class AzureBoardsService
         string requestUri,
         IReadOnlyCollection<JsonPatchOperation> operations,
         string? comment,
+        IReadOnlyCollection<string>? attachments,
         CancellationToken cancellationToken)
     {
         var item = await SendJsonPatchAsync(method, requestUri, operations, cancellationToken);
@@ -207,16 +224,23 @@ public sealed class AzureBoardsService
             await AddCommentAsync(item.Id, comment, cancellationToken);
         }
 
-        return item;
+        if (HasNoAttachments(attachments))
+        {
+            return item;
+        }
+
+        await AddAttachmentsAsync(item.Id, attachments!, cancellationToken);
+        return await GetAsync(item.Id, cancellationToken);
     }
 
     private async Task<WorkItem> UpdateAndMaybeCommentAsync(
         int id,
         IReadOnlyCollection<JsonPatchOperation> operations,
         string? comment,
+        IReadOnlyCollection<string>? attachments,
         CancellationToken cancellationToken)
     {
-        WorkItem item;
+        WorkItem? item = null;
         if (operations.Count > 0)
         {
             item = await SendJsonPatchAsync(
@@ -225,7 +249,7 @@ public sealed class AzureBoardsService
                 operations,
                 cancellationToken);
         }
-        else
+        else if (HasNoAttachments(attachments))
         {
             item = await GetAsync(id, cancellationToken);
         }
@@ -235,7 +259,78 @@ public sealed class AzureBoardsService
             await AddCommentAsync(id, comment, cancellationToken);
         }
 
-        return item;
+        if (HasNoAttachments(attachments))
+        {
+            return item ?? await GetAsync(id, cancellationToken);
+        }
+
+        await AddAttachmentsAsync(id, attachments!, cancellationToken);
+        return await GetAsync(id, cancellationToken);
+    }
+
+    private async Task AddAttachmentsAsync(
+        int workItemId,
+        IReadOnlyCollection<string> attachments,
+        CancellationToken cancellationToken)
+    {
+        foreach (var attachmentPath in attachments)
+        {
+            var attachmentUrl = await UploadAttachmentAsync(attachmentPath, cancellationToken);
+            await LinkAttachmentAsync(workItemId, attachmentUrl, attachmentPath, cancellationToken);
+        }
+    }
+
+    private async Task<string> UploadAttachmentAsync(
+        string attachmentPath,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(attachmentPath))
+        {
+            throw new ArgumentException("Attachment path cannot be empty.", nameof(attachmentPath));
+        }
+
+        var fullPath = Path.GetFullPath(attachmentPath);
+
+        var fileName = Path.GetFileName(fullPath);
+        await using var fileStream = File.OpenRead(fullPath);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"_apis/wit/attachments?fileName={Uri.EscapeDataString(fileName)}&api-version={ApiVersion}")
+        {
+            Content = new StreamContent(fileStream)
+        };
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        var attachment = await ReadResponseAsync<AttachmentReference>(response, cancellationToken);
+        return attachment.Url;
+    }
+
+    private Task<WorkItem> LinkAttachmentAsync(
+        int workItemId,
+        string attachmentUrl,
+        string attachmentPath,
+        CancellationToken cancellationToken)
+    {
+        var fileName = Path.GetFileName(attachmentPath);
+        var operations = new List<JsonPatchOperation>
+        {
+            new(
+                "add",
+                "/relations/-",
+                new
+                {
+                    rel = "AttachedFile",
+                    url = attachmentUrl,
+                    attributes = new { comment = $"Attached {fileName} by AzBoardCodexTool." }
+                })
+        };
+
+        return SendJsonPatchAsync(
+            HttpMethod.Patch,
+            $"_apis/wit/workitems/{workItemId}?api-version={ApiVersion}",
+            operations,
+            cancellationToken);
     }
 
     private async Task AddCommentAsync(
@@ -310,6 +405,31 @@ public sealed class AzureBoardsService
         }
     }
 
+    private static bool HasNoAttachments(IReadOnlyCollection<string>? attachments) =>
+        attachments is null || attachments.Count == 0;
+
+    private static void ValidateAttachments(IReadOnlyCollection<string>? attachments)
+    {
+        if (HasNoAttachments(attachments))
+        {
+            return;
+        }
+
+        foreach (var attachmentPath in attachments!)
+        {
+            if (string.IsNullOrWhiteSpace(attachmentPath))
+            {
+                throw new ArgumentException("Attachment path cannot be empty.", nameof(attachments));
+            }
+
+            var fullPath = Path.GetFullPath(attachmentPath);
+            if (!File.Exists(fullPath))
+            {
+                throw new FileNotFoundException("Attachment file was not found.", fullPath);
+            }
+        }
+    }
+
     private static string NormalizeWorkItemType(string type)
     {
         return type.Trim().ToLowerInvariant() switch
@@ -323,4 +443,10 @@ public sealed class AzureBoardsService
                 "Invalid work item type. Supported values: Epic, Feature, User Story, Task, Bug.")
         };
     }
+}
+
+public sealed class AttachmentReference
+{
+    [System.Text.Json.Serialization.JsonPropertyName("url")]
+    public string Url { get; init; } = string.Empty;
 }

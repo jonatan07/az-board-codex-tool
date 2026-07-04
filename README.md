@@ -74,6 +74,7 @@ Crear un Work Item usando .NET:
   -Description "Crear pantalla de login para la app móvil" `
   -AssignedTo "desarrollador@empresa.com" `
   -AcceptanceCriteria "El usuario puede iniciar sesión con credenciales válidas." `
+  -Attachment ".\docs\login-wireframe.png" `
   -Tags "MVP;Auth;Mobile" `
   -Comment "Creado desde Codex."
 ```
@@ -140,6 +141,7 @@ docker run --rm `
   --description "Crear pantalla de login para la app móvil" `
   --assigned-to "desarrollador@empresa.com" `
   --acceptance-criteria "El usuario puede iniciar sesión con credenciales válidas." `
+  --attachment ".\docs\login-wireframe.png" `
   --tags "MVP;Auth;Mobile" `
   --comment "Creado desde Codex."
 ```
@@ -152,7 +154,10 @@ docker run --rm `
   az-board-codex-tool:latest update `
   --id 12345 `
   --title "Actualizar pantalla de login" `
+  --assigned-to "desarrollador@empresa.com" `
+  --acceptance-criteria "El login muestra errores claros para credenciales inválidas." `
   --state "Active" `
+  --attachment ".\docs\login-errors.png" `
   --comment "Se inicio el desarrollo."
 ```
 
@@ -207,6 +212,7 @@ Opciones adicionales:
 - `--assigned-to`: nombre visible, correo o identidad reconocida por Azure DevOps.
 - `--acceptance-criteria`: contenido de `Microsoft.VSTS.Common.AcceptanceCriteria`.
 - `--comment`: comentario inicial agregado despues de crear el Work Item.
+- `--attachment`: ruta de archivo local para adjuntar. Puede repetirse para subir varios archivos.
 
 Estas opciones son opcionales. La disponibilidad de criterios de aceptación depende del proceso y del tipo de Work Item configurado en el proyecto; Azure Boards devolverá un error HTTP si el campo no existe para ese tipo.
 
@@ -217,11 +223,23 @@ dotnet run -- update `
   --id 12345 `
   --title "Actualizar pantalla de login" `
   --description "Nueva descripción" `
+  --assigned-to "desarrollador@empresa.com" `
+  --acceptance-criteria "El usuario puede iniciar sesión y recibe mensajes de error claros." `
   --state "Active" `
+  --attachment ".\docs\login-evidence.png" `
   --comment "Se actualizo el alcance."
 ```
 
-Se debe enviar al menos una de estas opciones: `--title`, `--description`, `--state`, `--tags` o `--comment`.
+Se debe enviar al menos una de estas opciones: `--title`, `--description`, `--assigned-to`, `--acceptance-criteria`, `--state`, `--tags`, `--comment` o `--attachment`.
+
+`--attachment` sube primero el archivo local a Azure DevOps y luego lo relaciona con el Work Item como `AttachedFile`. Puede repetirse:
+
+```powershell
+dotnet run -- update `
+  --id 12345 `
+  --attachment ".\docs\evidencia-1.png" `
+  --attachment ".\docs\evidencia-2.pdf"
+```
 
 ## Ejecucion paralela
 

@@ -8,6 +8,7 @@ param(
     [string]$Description,
     [string]$AssignedTo,
     [string]$AcceptanceCriteria,
+    [string[]]$Attachment,
     [string]$Tags,
     [string]$Comment,
     [int]$Id,
@@ -78,6 +79,21 @@ function Add-StringArgument {
     }
 }
 
+function Add-StringArrayArgument {
+    param(
+        [Parameter(Mandatory)][System.Collections.Generic.List[string]]$Arguments,
+        [Parameter(Mandatory)][string]$Name,
+        [AllowNull()][string[]]$Values
+    )
+
+    foreach ($value in $Values) {
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            $Arguments.Add($Name)
+            $Arguments.Add($value)
+        }
+    }
+}
+
 $toolArguments = [System.Collections.Generic.List[string]]::new()
 
 switch ($Command) {
@@ -97,6 +113,7 @@ switch ($Command) {
         Add-StringArgument $toolArguments "--acceptance-criteria" $AcceptanceCriteria
         Add-StringArgument $toolArguments "--tags" $Tags
         Add-StringArgument $toolArguments "--comment" $Comment
+        Add-StringArrayArgument $toolArguments "--attachment" $Attachment
     }
     "update" {
         if ($Id -le 0) {
@@ -108,9 +125,12 @@ switch ($Command) {
         $toolArguments.Add($Id.ToString())
         Add-StringArgument $toolArguments "--title" $Title
         Add-StringArgument $toolArguments "--description" $Description
+        Add-StringArgument $toolArguments "--assigned-to" $AssignedTo
+        Add-StringArgument $toolArguments "--acceptance-criteria" $AcceptanceCriteria
         Add-StringArgument $toolArguments "--state" $State
         Add-StringArgument $toolArguments "--tags" $Tags
         Add-StringArgument $toolArguments "--comment" $Comment
+        Add-StringArrayArgument $toolArguments "--attachment" $Attachment
     }
     "get" {
         if ($Id -le 0) {

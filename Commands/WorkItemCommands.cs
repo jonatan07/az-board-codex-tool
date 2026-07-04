@@ -31,6 +31,9 @@ public static class WorkItemCommands
             "Criterios de aceptación del Work Item.");
         var tags = OptionalStringOption("--tags", "Tags separados por punto y coma.");
         var comment = OptionalStringOption("--comment", "Comentario inicial del Work Item.");
+        var attachments = OptionalStringArrayOption(
+            "--attachment",
+            "Ruta de archivo para adjuntar. Puede repetirse.");
 
         var command = new Command("create", "Crea un Work Item.");
         command.Options.Add(type);
@@ -40,6 +43,7 @@ public static class WorkItemCommands
         command.Options.Add(acceptanceCriteria);
         command.Options.Add(tags);
         command.Options.Add(comment);
+        command.Options.Add(attachments);
 
         command.SetAction(async (parseResult, cancellationToken) =>
             await ConsoleOutput.ExecuteAsync(async () =>
@@ -52,6 +56,7 @@ public static class WorkItemCommands
                     parseResult.GetValue(acceptanceCriteria),
                     parseResult.GetValue(tags),
                     parseResult.GetValue(comment),
+                    parseResult.GetValue(attachments),
                     cancellationToken);
                 ConsoleOutput.PrintCreated(item);
             }));
@@ -64,17 +69,29 @@ public static class WorkItemCommands
         var id = RequiredIntOption("--id", "ID del Work Item.");
         var title = OptionalStringOption("--title", "Nuevo título.");
         var description = OptionalStringOption("--description", "Nueva descripción.");
+        var assignedTo = OptionalStringOption(
+            "--assigned-to",
+            "Nuevo usuario asignado (nombre visible, correo o identidad reconocida por Azure DevOps).");
+        var acceptanceCriteria = OptionalStringOption(
+            "--acceptance-criteria",
+            "Nuevos criterios de aceptación del Work Item.");
         var state = OptionalStringOption("--state", "Nuevo estado.");
         var tags = OptionalStringOption("--tags", "Nuevos tags separados por punto y coma.");
         var comment = OptionalStringOption("--comment", "Comentario para agregar al Work Item.");
+        var attachments = OptionalStringArrayOption(
+            "--attachment",
+            "Ruta de archivo para adjuntar. Puede repetirse.");
 
         var command = new Command("update", "Actualiza campos de un Work Item.");
         command.Options.Add(id);
         command.Options.Add(title);
         command.Options.Add(description);
+        command.Options.Add(assignedTo);
+        command.Options.Add(acceptanceCriteria);
         command.Options.Add(state);
         command.Options.Add(tags);
         command.Options.Add(comment);
+        command.Options.Add(attachments);
 
         command.SetAction(async (parseResult, cancellationToken) =>
             await ConsoleOutput.ExecuteAsync(async () =>
@@ -83,9 +100,12 @@ public static class WorkItemCommands
                     parseResult.GetRequiredValue(id),
                     parseResult.GetValue(title),
                     parseResult.GetValue(description),
+                    parseResult.GetValue(assignedTo),
+                    parseResult.GetValue(acceptanceCriteria),
                     parseResult.GetValue(state),
                     parseResult.GetValue(tags),
                     parseResult.GetValue(comment),
+                    parseResult.GetValue(attachments),
                     cancellationToken);
                 ConsoleOutput.PrintUpdated(item, "Updated");
             }));
@@ -158,6 +178,9 @@ public static class WorkItemCommands
 
     private static Option<string?> OptionalStringOption(string name, string description) =>
         new(name) { Description = description };
+
+    private static Option<string[]> OptionalStringArrayOption(string name, string description) =>
+        new(name) { Description = description, Arity = ArgumentArity.ZeroOrMore };
 
     private static Option<int> RequiredIntOption(string name, string description) =>
         new(name) { Description = description, Required = true };
