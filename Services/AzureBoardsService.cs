@@ -437,10 +437,12 @@ public sealed class AzureBoardsService
             "epic" => "Epic",
             "feature" => "Feature",
             "user story" or "userstory" or "story" => "User Story",
+            "product backlog item" or "productbacklogitem" or "pbi" => "Product Backlog Item",
             "task" => "Task",
             "bug" => "Bug",
             _ => throw new ArgumentException(
-                "Invalid work item type. Supported values: Epic, Feature, User Story, Task, Bug.")
+                "Invalid work item type. Supported values: Epic, Feature, User Story, " +
+                "Product Backlog Item, Task, Bug.")
         };
     }
 }

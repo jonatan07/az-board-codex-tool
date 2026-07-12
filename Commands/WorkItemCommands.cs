@@ -20,7 +20,9 @@ public static class WorkItemCommands
 
     private static Command CreateCreateCommand(AzureBoardsService service)
     {
-        var type = RequiredStringOption("--type", "Tipo: Epic, Feature, User Story, Task o Bug.");
+        var type = RequiredStringOption(
+            "--type",
+            "Tipo: Epic, Feature, User Story, Product Backlog Item, Task o Bug.");
         var title = RequiredStringOption("--title", "Título del Work Item.");
         var description = OptionalStringOption("--description", "Descripción del Work Item.");
         var assignedTo = OptionalStringOption(

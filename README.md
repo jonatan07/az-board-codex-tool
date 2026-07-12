@@ -7,6 +7,7 @@ Tipos soportados:
 - Epic
 - Feature
 - User Story
+- Product Backlog Item
 - Task
 - Bug
 
@@ -205,7 +206,8 @@ dotnet run -- create `
   --comment "Creado desde Codex."
 ```
 
-`--type` acepta `Epic`, `Feature`, `User Story`, `Task` y `Bug`. También se acepta `UserStory` como alias.
+`--type` acepta `Epic`, `Feature`, `User Story`, `Product Backlog Item`, `Task` y `Bug`.
+También se aceptan `UserStory`, `ProductBacklogItem` y `PBI` como alias.
 
 Opciones adicionales:
 
