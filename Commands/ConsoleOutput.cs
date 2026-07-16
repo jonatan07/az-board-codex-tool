@@ -26,6 +26,16 @@ internal static class ConsoleOutput
             Console.Error.WriteLine($"Validation error: {ex.Message}");
             Environment.ExitCode = 2;
         }
+        catch (IOException ex)
+        {
+            Console.Error.WriteLine($"Validation error: {ex.Message}");
+            Environment.ExitCode = 2;
+        }
+        catch (JsonException ex)
+        {
+            Console.Error.WriteLine($"Validation error: Invalid JSON. {ex.Message}");
+            Environment.ExitCode = 2;
+        }
     }
 
     public static void PrintCreated(WorkItem item)
@@ -61,6 +71,24 @@ internal static class ConsoleOutput
 
         Console.WriteLine();
         Console.WriteLine($"Total: {items.Count}");
+    }
+
+    public static void PrintWorkItemTypes(IReadOnlyList<WorkItemTypeDefinition> types)
+    {
+        if (types.Count == 0)
+        {
+            Console.WriteLine("No work item types are available in the configured project.");
+            return;
+        }
+
+        Console.WriteLine("Available Work Item Types:");
+        foreach (var type in types)
+        {
+            Console.WriteLine($"- {type.Name}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"Total: {types.Count}");
     }
 
     private static string GetWebUrl(WorkItem item)

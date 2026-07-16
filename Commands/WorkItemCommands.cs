@@ -15,6 +15,7 @@ public static class WorkItemCommands
         root.Subcommands.Add(CreateGetCommand(service));
         root.Subcommands.Add(CreateLinkParentCommand(service));
         root.Subcommands.Add(CreateQueryCommand(service));
+        root.Subcommands.Add(CreateTypesCommand(service));
         return root;
     }
 
@@ -22,7 +23,7 @@ public static class WorkItemCommands
     {
         var type = RequiredStringOption(
             "--type",
-            "Tipo: Epic, Feature, User Story, Product Backlog Item, Task o Bug.");
+            "Tipo habilitado en el proyecto, por ejemplo Epic, Issue, PBI, Requirement o Test Case.");
         var title = RequiredStringOption("--title", "Título del Work Item.");
         var description = OptionalStringOption("--description", "Descripción del Work Item.");
         var assignedTo = OptionalStringOption(
@@ -31,6 +32,12 @@ public static class WorkItemCommands
         var acceptanceCriteria = OptionalStringOption(
             "--acceptance-criteria",
             "Criterios de aceptación del Work Item.");
+        var stepsFile = OptionalStringOption(
+            "--steps-file",
+            "Archivo JSON con pasos de un Test Case.");
+        var priority = OptionalIntOption(
+            "--priority",
+            "Prioridad, si el tipo de Work Item admite este campo.");
         var tags = OptionalStringOption("--tags", "Tags separados por punto y coma.");
         var comment = OptionalStringOption("--comment", "Comentario inicial del Work Item.");
         var attachments = OptionalStringArrayOption(
@@ -43,6 +50,8 @@ public static class WorkItemCommands
         command.Options.Add(description);
         command.Options.Add(assignedTo);
         command.Options.Add(acceptanceCriteria);
+        command.Options.Add(stepsFile);
+        command.Options.Add(priority);
         command.Options.Add(tags);
         command.Options.Add(comment);
         command.Options.Add(attachments);
@@ -56,6 +65,8 @@ public static class WorkItemCommands
                     parseResult.GetValue(description),
                     parseResult.GetValue(assignedTo),
                     parseResult.GetValue(acceptanceCriteria),
+                    parseResult.GetValue(stepsFile),
+                    parseResult.GetValue(priority),
                     parseResult.GetValue(tags),
                     parseResult.GetValue(comment),
                     parseResult.GetValue(attachments),
@@ -175,6 +186,22 @@ public static class WorkItemCommands
         return command;
     }
 
+    private static Command CreateTypesCommand(AzureBoardsService service)
+    {
+        var command = new Command(
+            "types",
+            "Lista los tipos de Work Item habilitados en el proyecto configurado.");
+
+        command.SetAction(async (_, cancellationToken) =>
+            await ConsoleOutput.ExecuteAsync(async () =>
+            {
+                var types = await service.GetWorkItemTypesAsync(cancellationToken);
+                ConsoleOutput.PrintWorkItemTypes(types);
+            }));
+
+        return command;
+    }
+
     private static Option<string> RequiredStringOption(string name, string description) =>
         new(name) { Description = description, Required = true };
 
@@ -186,4 +213,7 @@ public static class WorkItemCommands
 
     private static Option<int> RequiredIntOption(string name, string description) =>
         new(name) { Description = description, Required = true };
+
+    private static Option<int?> OptionalIntOption(string name, string description) =>
+        new(name) { Description = description };
 }

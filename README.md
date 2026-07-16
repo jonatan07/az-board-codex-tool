@@ -2,14 +2,20 @@
 
 CLI en .NET 8 para crear, actualizar, consultar y relacionar Work Items en Azure Boards mediante la API REST oficial.
 
-Tipos soportados:
+La herramienta consulta los tipos habilitados en el proyecto antes de crear. Funciona con
+procesos Basic, Agile, Scrum, CMMI y procesos heredados con tipos personalizados. Reconoce
+directamente estos tipos comunes:
 
 - Epic
 - Feature
 - User Story
+- Issue
 - Product Backlog Item
+- Requirement
 - Task
 - Bug
+- Impediment
+- Test Case
 
 ## Requisitos
 
@@ -65,6 +71,12 @@ Validar únicamente la configuración:
 .\scripts\Invoke-AzBoardCodexTool.ps1 -CheckEnvironment
 ```
 
+Listar los tipos habilitados en el proyecto sin realizar cambios:
+
+```powershell
+.\scripts\Invoke-AzBoardCodexTool.ps1 -Command types
+```
+
 Crear un Work Item usando .NET:
 
 ```powershell
@@ -89,7 +101,7 @@ Usar la imagen Docker:
   -Id 12345
 ```
 
-Comandos admitidos por el script: `create`, `update`, `get`, `link-parent`, `query` y `help`.
+Comandos admitidos por el script: `create`, `update`, `get`, `link-parent`, `query`, `types` y `help`.
 
 ## Uso con Docker
 
@@ -206,17 +218,58 @@ dotnet run -- create `
   --comment "Creado desde Codex."
 ```
 
-`--type` acepta `Epic`, `Feature`, `User Story`, `Product Backlog Item`, `Task` y `Bug`.
-También se aceptan `UserStory`, `ProductBacklogItem` y `PBI` como alias.
+`--type` acepta cualquier tipo que Azure DevOps exponga para el proyecto configurado. Se
+normalizan los alias `UserStory`, `Story`, `ProductBacklogItem`, `PBI` y `TestCase`. Antes de
+crear, la herramienta valida que el tipo y los campos opcionales existan en el proyecto.
 
 Opciones adicionales:
 
 - `--assigned-to`: nombre visible, correo o identidad reconocida por Azure DevOps.
 - `--acceptance-criteria`: contenido de `Microsoft.VSTS.Common.AcceptanceCriteria`.
+- `--priority`: contenido de `Microsoft.VSTS.Common.Priority`.
+- `--steps-file`: archivo JSON con pasos; solo puede usarse con `Test Case`.
 - `--comment`: comentario inicial agregado despues de crear el Work Item.
 - `--attachment`: ruta de archivo local para adjuntar. Puede repetirse para subir varios archivos.
 
-Estas opciones son opcionales. La disponibilidad de criterios de aceptación depende del proceso y del tipo de Work Item configurado en el proyecto; Azure Boards devolverá un error HTTP si el campo no existe para ese tipo.
+Estas opciones son opcionales. Si un campo no existe para el tipo seleccionado, la herramienta
+detiene la operación antes de crear el Work Item e informa el campo incompatible.
+
+### Crear un Test Case con pasos
+
+Crear `test-case-steps.json`:
+
+```json
+[
+  {
+    "action": "Abrir la pantalla de inicio de sesión",
+    "expectedResult": "Se muestran los campos de usuario y contraseña"
+  },
+  {
+    "action": "Ingresar credenciales válidas y continuar",
+    "expectedResult": "Se muestra el dashboard"
+  }
+]
+```
+
+Ejecutar:
+
+```powershell
+.\scripts\Invoke-AzBoardCodexTool.ps1 `
+  -Command create `
+  -Type "Test Case" `
+  -Title "Inicio de sesión exitoso" `
+  -StepsFile ".\test-case-steps.json" `
+  -Priority 2
+```
+
+### Listar tipos disponibles
+
+```powershell
+dotnet run -- types
+```
+
+Este comando permite verificar los tipos de un proyecto Basic, Agile, Scrum, CMMI o
+personalizado sin crear ni modificar Work Items.
 
 ### Actualizar un Work Item
 
@@ -414,6 +467,8 @@ AzBoardCodexTool/
 ## Referencias oficiales
 
 - [Work Items - Create](https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/create?view=azure-devops-rest-7.1)
+- [Work Item Types - List](https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-item-types/list?view=azure-devops-rest-7.1)
+- [Work Item Type Fields - List](https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-item-types-field/list?view=azure-devops-rest-7.1)
 - [Work Items - Update](https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/update?view=azure-devops-rest-7.1)
 - [Work Items - Get](https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/get?view=azure-devops-rest-7.1)
 - [WIQL - Query By WIQL](https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/wiql/query-by-wiql?view=azure-devops-rest-7.1)

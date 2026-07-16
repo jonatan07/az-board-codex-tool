@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("create", "update", "get", "link-parent", "query", "help")]
+    [ValidateSet("create", "update", "get", "link-parent", "query", "types", "help")]
     [string]$Command = "help",
 
     [string]$Type,
@@ -8,6 +8,8 @@ param(
     [string]$Description,
     [string]$AssignedTo,
     [string]$AcceptanceCriteria,
+    [string]$StepsFile,
+    [Nullable[int]]$Priority,
     [string[]]$Attachment,
     [string]$Tags,
     [string]$Comment,
@@ -111,6 +113,10 @@ switch ($Command) {
         Add-StringArgument $toolArguments "--description" $Description
         Add-StringArgument $toolArguments "--assigned-to" $AssignedTo
         Add-StringArgument $toolArguments "--acceptance-criteria" $AcceptanceCriteria
+        Add-StringArgument $toolArguments "--steps-file" $StepsFile
+        if ($null -ne $Priority) {
+            Add-StringArgument $toolArguments "--priority" $Priority.Value.ToString()
+        }
         Add-StringArgument $toolArguments "--tags" $Tags
         Add-StringArgument $toolArguments "--comment" $Comment
         Add-StringArrayArgument $toolArguments "--attachment" $Attachment
@@ -159,6 +165,9 @@ switch ($Command) {
 
         $toolArguments.Add("query")
         Add-StringArgument $toolArguments "--wiql" $Wiql
+    }
+    "types" {
+        $toolArguments.Add("types")
     }
 }
 

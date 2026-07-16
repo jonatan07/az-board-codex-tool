@@ -32,12 +32,14 @@ public sealed class AzureBoardsService
             new AuthenticationHeaderValue("Basic", basicToken);
     }
 
-    public Task<WorkItem> CreateAsync(
+    public async Task<WorkItem> CreateAsync(
         string type,
         string title,
         string? description,
         string? assignedTo,
         string? acceptanceCriteria,
+        string? stepsFile,
+        int? priority,
         string? tags,
         string? comment,
         IReadOnlyCollection<string>? attachments,
@@ -45,27 +47,84 @@ public sealed class AzureBoardsService
     {
         ValidateAttachments(attachments);
 
+        var workItemType = await ResolveWorkItemTypeAsync(type, cancellationToken);
+        var fields = await GetWorkItemTypeFieldsAsync(workItemType.Name, cancellationToken);
+        var availableFields = fields
+            .Select(field => field.ReferenceName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var operations = new List<JsonPatchOperation>
         {
             new("add", "/fields/System.Title", title)
         };
 
-        AddOptionalField(operations, "/fields/System.Description", description);
-        AddOptionalField(operations, "/fields/System.AssignedTo", assignedTo);
-        AddOptionalField(
+        AddSupportedOptionalField(
+            operations, availableFields, "System.Description", description, workItemType.Name);
+        AddSupportedOptionalField(
+            operations, availableFields, "System.AssignedTo", assignedTo, workItemType.Name);
+        AddSupportedOptionalField(
             operations,
-            "/fields/Microsoft.VSTS.Common.AcceptanceCriteria",
-            acceptanceCriteria);
-        AddOptionalField(operations, "/fields/System.Tags", tags);
+            availableFields,
+            "Microsoft.VSTS.Common.AcceptanceCriteria",
+            acceptanceCriteria,
+            workItemType.Name);
+        AddSupportedOptionalField(
+            operations, availableFields, "System.Tags", tags, workItemType.Name);
 
-        var encodedType = Uri.EscapeDataString(NormalizeWorkItemType(type));
-        return CreateAndMaybeCommentAsync(
+        if (priority is not null)
+        {
+            EnsureFieldIsSupported(
+                availableFields,
+                "Microsoft.VSTS.Common.Priority",
+                workItemType.Name);
+            operations.Add(
+                new JsonPatchOperation(
+                    "add",
+                    "/fields/Microsoft.VSTS.Common.Priority",
+                    priority.Value));
+        }
+
+        if (!string.IsNullOrWhiteSpace(stepsFile))
+        {
+            if (!string.Equals(workItemType.Name, "Test Case", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("--steps-file can only be used with the Test Case type.");
+            }
+
+            EnsureFieldIsSupported(
+                availableFields,
+                "Microsoft.VSTS.TCM.Steps",
+                workItemType.Name);
+            operations.Add(
+                new JsonPatchOperation(
+                    "add",
+                    "/fields/Microsoft.VSTS.TCM.Steps",
+                    TestCaseStepsSerializer.FromJsonFile(stepsFile)));
+        }
+
+        var encodedType = Uri.EscapeDataString(workItemType.Name);
+        return await CreateAndMaybeCommentAsync(
             HttpMethod.Post,
             $"_apis/wit/workitems/${encodedType}?api-version={ApiVersion}",
             operations,
             comment,
             attachments,
             cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<WorkItemTypeDefinition>> GetWorkItemTypesAsync(
+        CancellationToken cancellationToken)
+    {
+        using var response = await _httpClient.GetAsync(
+            $"_apis/wit/workitemtypes?api-version={ApiVersion}",
+            cancellationToken);
+        var result = await ReadResponseAsync<WorkItemTypeListResponse>(
+            response,
+            cancellationToken);
+        return result.Value
+            .Where(type => !string.IsNullOrWhiteSpace(type.Name))
+            .OrderBy(type => type.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     public Task<WorkItem> UpdateAsync(
@@ -405,6 +464,71 @@ public sealed class AzureBoardsService
         }
     }
 
+    private async Task<WorkItemTypeDefinition> ResolveWorkItemTypeAsync(
+        string requestedType,
+        CancellationToken cancellationToken)
+    {
+        var normalizedType = WorkItemTypeName.Normalize(requestedType);
+        var types = await GetWorkItemTypesAsync(cancellationToken);
+        var match = types.FirstOrDefault(
+            type => string.Equals(type.Name, normalizedType, StringComparison.OrdinalIgnoreCase));
+
+        if (match is not null)
+        {
+            return match;
+        }
+
+        var available = types.Count == 0
+            ? "none"
+            : string.Join(", ", types.Select(type => type.Name));
+        throw new ArgumentException(
+            $"Work item type '{requestedType}' is not available in project '{_options.Project}'. " +
+            $"Available types: {available}.",
+            nameof(requestedType));
+    }
+
+    private async Task<IReadOnlyList<WorkItemTypeFieldDefinition>> GetWorkItemTypeFieldsAsync(
+        string type,
+        CancellationToken cancellationToken)
+    {
+        var encodedType = Uri.EscapeDataString(type);
+        using var response = await _httpClient.GetAsync(
+            $"_apis/wit/workitemtypes/{encodedType}/fields?api-version={ApiVersion}",
+            cancellationToken);
+        var result = await ReadResponseAsync<WorkItemTypeFieldListResponse>(
+            response,
+            cancellationToken);
+        return result.Value;
+    }
+
+    private static void AddSupportedOptionalField(
+        ICollection<JsonPatchOperation> operations,
+        IReadOnlySet<string> availableFields,
+        string referenceName,
+        string? value,
+        string workItemType)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        EnsureFieldIsSupported(availableFields, referenceName, workItemType);
+        operations.Add(new JsonPatchOperation("add", $"/fields/{referenceName}", value));
+    }
+
+    private static void EnsureFieldIsSupported(
+        IReadOnlySet<string> availableFields,
+        string referenceName,
+        string workItemType)
+    {
+        if (!availableFields.Contains(referenceName))
+        {
+            throw new ArgumentException(
+                $"Field '{referenceName}' is not available for work item type '{workItemType}'.");
+        }
+    }
+
     private static bool HasNoAttachments(IReadOnlyCollection<string>? attachments) =>
         attachments is null || attachments.Count == 0;
 
@@ -430,21 +554,6 @@ public sealed class AzureBoardsService
         }
     }
 
-    private static string NormalizeWorkItemType(string type)
-    {
-        return type.Trim().ToLowerInvariant() switch
-        {
-            "epic" => "Epic",
-            "feature" => "Feature",
-            "user story" or "userstory" or "story" => "User Story",
-            "product backlog item" or "productbacklogitem" or "pbi" => "Product Backlog Item",
-            "task" => "Task",
-            "bug" => "Bug",
-            _ => throw new ArgumentException(
-                "Invalid work item type. Supported values: Epic, Feature, User Story, " +
-                "Product Backlog Item, Task, Bug.")
-        };
-    }
 }
 
 public sealed class AttachmentReference
