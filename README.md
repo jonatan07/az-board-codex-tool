@@ -50,6 +50,7 @@ Abra una terminal nueva después de persistirlas. `.env.example` es solo una ref
 ```powershell
 dotnet restore
 dotnet build --configuration Release
+dotnet test .\tests\AzBoardCodexTool.Tests\AzBoardCodexTool.Tests.csproj --configuration Release
 dotnet run -- --help
 ```
 
@@ -448,13 +449,24 @@ AzBoardCodexTool/
 │   └── ConfigurationException.cs
 ├── Models/
 │   ├── JsonPatchOperation.cs
+│   ├── TestCaseStep.cs
 │   ├── WiqlModels.cs
-│   └── WorkItem.cs
+│   ├── WorkItem.cs
+│   └── WorkItemTypeModels.cs
 ├── Services/
 │   ├── AzureBoardsService.cs
-│   └── AzureDevOpsApiException.cs
+│   ├── AzureDevOpsApiException.cs
+│   ├── TestCaseStepsSerializer.cs
+│   └── WorkItemTypeName.cs
 ├── scripts/
 │   └── Invoke-AzBoardCodexTool.ps1
+├── tests/
+│   └── AzBoardCodexTool.Tests/
+│       ├── AzBoardCodexTool.Tests.csproj
+│       ├── AzureBoardsServiceTests.cs
+│       ├── GlobalUsings.cs
+│       ├── TestCaseStepsSerializerTests.cs
+│       └── WorkItemTypeNameTests.cs
 ├── .env.example
 ├── .dockerignore
 ├── .gitignore
